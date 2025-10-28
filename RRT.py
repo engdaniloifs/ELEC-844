@@ -14,14 +14,16 @@ def is_in_obstacle(point,obstacles):
             return True
     return False
 
-def sample(X, epsilon,goal,obstacles,random_node=None):
+def sample(X, epsilon,goal,obstacles,iterations,random_node=None):
     p = np.random.rand()
     if p < epsilon:
-        return goal
+        iterations += 1
+        return goal,iterations
     else:
-        while random_node is None or is_in_obstacle( (random_node[0], random_node[1]),obstacles):
-            random_node = [np.random.uniform(*X[0]), np.random.uniform(*X[1])]
-    return random_node
+        while random_node is None or is_in_obstacle( random_node,obstacles):
+            random_node = (np.random.uniform(*X[0]), np.random.uniform(*X[1]))
+            iterations += 1
+    return random_node, iterations
 
 def find_nearest_node(nodes, point):
     return min(nodes, key=lambda node: distance(node, point))
@@ -30,12 +32,13 @@ def distance(node1, node2):
     return np.hypot(node1[0] - node2[0], node1[1] - node2[1])
 
 def step(nearest, point, step_size):
-    if distance(nearest, point) < step_size:
-        return point
+    cost = distance(nearest, point)
+    if cost < step_size:
+        return point,cost
     angle = np.atan2(point[1] - nearest[1], point[0] - nearest[0])
     x = nearest[0] + step_size * np.cos(angle)
     y = nearest[1] + step_size * np.sin(angle)
-    return (x, y)
+    return (x, y),step_size
 
 def is_edge_valid(node1, node2, obstacles):
     steps = 5
@@ -52,7 +55,7 @@ def main():
     xlim,ylim = (0, 100),(0,100)
     start = (25, 50)
     goal = (75, 50)
-    epsilon = 0.1
+    epsilon = 0.01
     step_size = 2.5
 
     gap_width = 25
@@ -79,21 +82,46 @@ def main():
     
     nodes = [start]
     edges = []
-
-    
+    solution_length = {start: 0}
+    iterations = 0
     while goal not in nodes:
-        random_node = sample(X,epsilon,goal,obstacles)
-        print("Sampled node:", random_node)
+        random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
         nearest_node = find_nearest_node(nodes,random_node)
-        new_node = step(nearest_node, random_node, step_size)
+        new_node,cost = step(nearest_node, random_node, step_size)
         if is_edge_valid(nearest_node,new_node,obstacles):
             nodes.append(new_node)
             edges.append((nearest_node,new_node))
-            plt.plot([nearest_node[0], new_node[0]], [nearest_node[1], new_node[1]], color='black')  # Nós visitados em preto
-            plt.plot(new_node[0], new_node[1], 'go', markersize=2)  # Nós novos em verde
-            plt.pause(0.2)
-
+            cost = solution_length[nearest_node]+ cost
+            solution_length[new_node] = cost
+            
+            plt.plot([nearest_node[0], new_node[0]], [nearest_node[1], new_node[1]], color='black')  
+            plt.plot(new_node[0], new_node[1], 'go', markersize=2)  
+            
+    node = goal
+    path = []
+    while node != start:
+        edge = None
+        for (n1, n2) in edges:
+            if n2 == node:
+                edge = (n1, n2)
+                break
+        if edge in edges:
+            path.append(edge)
+        node = n1
+        
     tree = [nodes, edges]
+    
+    for (p, c) in reversed(path):   # go from start → goal
+        x1, y1 = p
+        x2, y2 = c
+        plt.plot([x1, x2], [y1, y2], 'r-', linewidth=2)  
+        plt.plot(x1, y1, 'ro', markersize=5)          
+    
+    #plt.legend()
+    #plt.title(f"RRT Concluído - Iterações: {iterations}")
+    print("Iterations:",iterations)
+    print("Vertices:",len(nodes))
+    print("Solution length:", solution_length[goal])
     print("Goal reached!")
     plt.show()
 
