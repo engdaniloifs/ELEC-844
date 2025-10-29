@@ -31,31 +31,50 @@ def find_nearest_node(nodes, point):
 def distance(node1, node2):
     return np.hypot(node1[0] - node2[0], node1[1] - node2[1])
 
-def step(nearest, point, step_size):
-    cost = distance(nearest, point)
-    if cost < step_size:
-        return point,cost
-    angle = np.atan2(point[1] - nearest[1], point[0] - nearest[0])
-    x = nearest[0] + step_size * np.cos(angle)
-    y = nearest[1] + step_size * np.sin(angle)
-    return (x, y),step_size
+def wrap_to_pi(a):
+    return (a + np.pi) % (2*np.pi) - np.pi
 
-def is_edge_valid(node1, node2, obstacles):
-    steps = 5
-    for i in range(1,steps + 1):
-        t = i / steps
-        x = node1[0] + t * (node2[0] - node1[0])
-        y = node1[1] + t * (node2[1] - node1[1])
-        if is_in_obstacle((x, y), obstacles):
-            return False
-    return True
+def steer(nearest, point, step_size,car_variables,obstacles):
+    speed = car_variables[0]
+    maximum_steering = car_variables[1]
+    L = car_variables[2]
+    step_time = step_size/speed
+    T = 0
+    t = step_time/5
 
-def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = False):
+    x_new = nearest[0]
+    y_new = nearest[1]
+    theta_new = nearest[2]
+
+    while (distance(nearest, point) > (speed*T) and (speed*T)<step_size):
+
+        alpha = theta_new - np.atan2(point[1] - y_new, point[0] - x_new)
+        alpha = wrap_to_pi(alpha)
+
+        phi = np.atan2(alpha*L,speed*step_time)
+        phi = np.clip(phi,-maximum_steering,maximum_steering)
+
+        x_new = x_new + speed*t*np.cos(nearest[2])
+        y_new = y_new + speed*t*np.sin(nearest[2])
+        theta_new = theta_new + (speed*t*np.tan(phi))/L
+
+        if is_in_obstacle((x_new,y_new),obstacles):
+            return (x_new, y_new, theta_new),step_size, False
+        T += t
+
+    return (x_new, y_new,theta_new), step_size, True
+
+
+def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,car_variables,trial,plot = False):
     # with plot on
     np.random.seed(trial)
     if plot:
-        plt.plot(*start, 'bo', markersize=8, label="Start")
-        plt.plot(*goal, 'ro', markersize=8, label="Goal")
+        x_start,y_start, theta_start = start 
+        x_goal,y_goal,theta_goal = goal
+        plt.plot((x_start,y_start), 'bo', markersize=4, label="Start")
+        plt.quiver(x_start, y_start, np.cos(theta_start), np.sin(theta_start), angles='xy', scale_units='xy', scale=1, width=0.004)
+        plt.plot((x_goal,y_goal), 'ro', markersize=8, label="Goal")
+        plt.quiver(x_goal, y_goal, np.cos(theta_goal), np.sin(theta_goal), angles='xy', scale_units='xy', scale=1, width=0.004)
         plt.xlim(xlim)
         plt.ylim(ylim)
         plt.title("RRT in progress")
@@ -76,11 +95,12 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = Fal
         edges = []
         solution_length = {start: 0}
         iterations = 0
+        plt.pause(1)
         while goal not in nodes:
             random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
             nearest_node = find_nearest_node(nodes,random_node)
-            new_node,cost = step(nearest_node, random_node, step_size)
-            if is_edge_valid(nearest_node,new_node,obstacles):
+            new_node,cost,is_edge_valid = steer(nearest_node, random_node, step_size,car_variables,obstacles)
+            if is_edge_valid:
                 nodes.append(new_node)
                 edges.append((nearest_node,new_node))
                 cost = solution_length[nearest_node]+ cost
@@ -126,7 +146,7 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = Fal
 
         random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
         nearest_node = find_nearest_node(nodes,random_node)
-        new_node,cost = step(nearest_node, random_node, step_size)
+        new_node,cost = steer(nearest_node, random_node, step_size)
 
         if is_edge_valid(nearest_node,new_node,obstacles):
 
@@ -146,8 +166,8 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = Fal
 def main():
 
     xlim,ylim = (0, 100),(0,100)
-    start = (25, 50)
-    goal = (75, 50)
+    start = (25, 50, 0)
+    goal = (75, 50, 0)
     epsilon = 0.01
     step_size = 2.5
     trials_number = 100
@@ -159,9 +179,15 @@ def main():
     vertices_list = np.zeros(trials_number,dtype=float)
     solution_length_list = np.zeros(trials_number,dtype=float)
     
+    #car_variables
+    maximum_steering = 0.6 #rad
+    speed = 1 #
+    L = 1.5 # The vehicle's track length.
+    car_variables = [speed,maximum_steering, L]
+
     
-    
-    iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial = 0,plot = True)
+    iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,
+                                                      step_size,car_variables,trial = 0,plot = True)
     
     iterations_list[0] = iterations
     vertices_list[0] = vertices
