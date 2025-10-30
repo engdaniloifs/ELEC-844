@@ -177,13 +177,13 @@ def main():
         vertices_list[trial] = vertices
         solution_length_list[trial] = solution_length
 
-    iterations_mean = np.mean(iterations_list)
-    vertices_mean = np.mean(vertices_list)
-    solution_length_mean = np.mean(solution_length_list)
+    iterations_median = np.mean(iterations_list)
+    vertices_median = np.mean(vertices_list)
+    solution_length_median = np.mean(solution_length_list)
 
-    print("Iterations mean:",iterations_mean)
-    print("Vertices mean:",vertices_mean)
-    print("Solution length mean:", solution_length_mean)
+    print("Iterations median:",iterations_median)
+    print("Vertices median:",vertices_median)
+    print("Solution length median:", solution_length_median)
 
 
     plt.show()
