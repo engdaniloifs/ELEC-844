@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import patches
 import time
+import csv
 
 
 def is_in_obstacle(point,obstacles):
@@ -70,21 +71,21 @@ def steer(nearest, point, step_size,car_variables,obstacles,goal):
 
 def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,car_variables,trial,plot = False):
     # with plot on
-    np.random.seed(trial)
+    #np.random.seed(trial)
     if plot:
         x_start,y_start, theta_start = start 
         x_goal,y_goal,theta_goal = goal
         plt.plot(x_start,y_start, 'bo', markersize=4, label="Start")
-        plt.quiver(x_start, y_start, 2*np.cos(theta_start), 2*np.sin(theta_start), angles='xy', scale_units='xy', scale=1, width=0.002)
+        plt.quiver(x_start, y_start, 0.1*np.cos(theta_start), 0.1*np.sin(theta_start), angles='xy', scale_units='xy', scale=2, width=0.003)
         plt.plot(x_goal,y_goal, 'ro', markersize=4, label="Goal")
-        plt.quiver(x_goal, y_goal, 2*np.cos(theta_goal), 2*np.sin(theta_goal), angles='xy', scale_units='xy', scale=1, width=0.002)
+        plt.quiver(x_goal, y_goal, 0.1*np.cos(theta_goal), 0.1*np.sin(theta_goal), angles='xy', scale_units='xy', scale=2, width=0.003)
         plt.xlim(xlim)
         plt.ylim(ylim)
         plt.title("RRT in progress")
         plt.xlabel("X")
         plt.ylabel("Y")
         plt.legend()
-
+        
         ax = plt.gca()
         for (ox, oy), (w, h) in obstacles:
             
@@ -93,30 +94,36 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,car_variables,tr
             ax.add_patch(rect)
 
         X = [xlim, ylim]
-        
+        #plt.show()
         nodes = [start]
+        nodes_demo = [(start, 0)]
         edges = []
+        edges_demo = []
         solution_length = {start: 0}
         iterations = 0
+        t_inicial = time.time()
         while goal not in nodes:
+            
             random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
             nearest_node = find_nearest_node(nodes,random_node)
             new_node,cost,is_edge_valid = steer(nearest_node, random_node, step_size,car_variables,obstacles,goal)
-            if iterations % 50 == 0:
+            if iterations % 1000 == 0:
                 plt.pause(1)
             if is_edge_valid:
-                
+                t_elapsed = time.time() - t_inicial
 
                 nodes.append(new_node)
+                nodes_demo.append((new_node,t_elapsed))
                 edges.append((nearest_node,new_node))
+                edges_demo.append(((nearest_node,new_node),t_elapsed))
                 
                 cost = solution_length[nearest_node]+ cost
                 solution_length[new_node] = cost
                 
                 plt.plot([nearest_node[0], new_node[0]], [nearest_node[1], new_node[1]], color='black')  
                 plt.plot(new_node[0], new_node[1], 'go', markersize=2)  
-                plt.quiver(new_node[0], new_node[1], 2*np.cos(new_node[2]),
-                            2*np.sin(new_node[2]), angles='xy', scale_units='xy', scale=1, width=0.002)
+                plt.quiver(new_node[0], new_node[1], 0.1*np.cos(new_node[2]),
+                            0.1*np.sin(new_node[2]), angles='xy', scale_units='xy', scale=2, width=0.003)
                 
 
         node = goal
@@ -130,19 +137,20 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,car_variables,tr
             if edge in edges:
                 path.append(edge)
             node = n1
-        
+        path_demo = []
         for (p, c) in reversed(path):   # go from start → goal
             x1, y1,theta1 = p
             x2, y2,theta2 = c
+            path_demo.append((x1,y1,theta1))
             plt.plot([x1, x2], [y1, y2], 'r-', linewidth=1)  
-            
+        path_demo.append(goal)
         plt.pause(1)
         plt.title(f"RRT Finished - Trial number {trial+1}")
         print("Iterations:",iterations)
         print("Vertices:",len(nodes))
         print("Solution length:", solution_length[goal])
         plt.show()
-        return iterations, len(nodes), solution_length[goal], path[-2][1]
+        return iterations, len(nodes), solution_length[goal], nodes_demo,edges_demo, path_demo
     
     #without plot on
     X = [xlim, ylim]
@@ -175,38 +183,59 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,car_variables,tr
 
 def main():
 
-    xlim,ylim = (0, 100),(0,100)
-    start = (25, 50, np.deg2rad(0))
-    goal = (75, 50, np.deg2rad(90))
+    xlim,ylim = (-2, 2),(-2,2)
+    start = (-0.75, 0, np.deg2rad(0))
+    goal = (0.75, 0, np.deg2rad(90))
     epsilon = 0.01
-    step_size = 5
+    step_size = 0.1
     trials_number = 100
 
-    gap_width = 25
-    obstacles = [((50,50),(10,100-2*gap_width))]
+    #gap_width = 10
+    obstacles = [((0,0),(0.22,1.5))]
     
     iterations_list = np.zeros(trials_number,dtype=float)
     vertices_list = np.zeros(trials_number,dtype=float)
     solution_length_list = np.zeros(trials_number,dtype=float)
     
     #car_variables
-    maximum_steering = 0.6 #rad
-    speed = 1 #
-    L = 1.5 # The vehicle's track length.
+    maximum_steering = 0.5 #rad
+    speed = 0.2 #
+    L = 0.256 # The vehicle's track length.
     car_variables = [speed,maximum_steering, L]
     phi_circle = np.atan2(goal[1]-50,goal[0]-50)  # current angle
     v_goal = speed
     angular_velocity_goal = v_goal/25  # radius is 25
-    while distance(start[:2],goal[:2]) > step_size:
-        iterations, vertices, solution_length, next_position = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,
+
+
+    iterations, vertices, solution_length, nodes_demo, edges_demo, path_demo = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,
                                                         step_size,car_variables,trial = 0,plot = True)
-        start = (next_position[0],next_position[1],next_position[2])
+    
+    with open("tree.csv", mode="w", newline="") as file:
+        writer = csv.writer(file)
         
-        phi_circle = wrap_to_pi(phi_circle +  angular_velocity_goal*step_size)           # current angle
-        x_new_goal = 50 + 25 * np.cos(phi_circle)
-        y_new_goal = 50 + 25 * np.sin(phi_circle)
-        theta_new_goal = wrap_to_pi(phi_circle + np.pi/2)
-        goal = (x_new_goal,y_new_goal,theta_new_goal)
+        # Write headers
+        writer.writerow(["node sampled, edge_created"])
+        writer.writerow([
+            "x", "y", "theta", "time",        # node sampled
+            "x1", "y1", "theta1",             # edge start
+            "x2", "y2", "theta2", "time"        # edge end/time
+            ])
+    
+    # Write each node and corresponding edge
+        for ((x, y, theta), t), ((n1, n2), t_elapsed) in zip(nodes_demo, edges_demo):
+            (x1, y1, theta1) = n1
+            (x2, y2, theta2) = n2
+            writer.writerow([x, y, theta, t, x1, y1, theta1, x2, y2, theta2, t_elapsed])
+
+# Separate with open (same indentation)
+    with open("path.csv", mode="w", newline="") as file:
+        writer = csv.writer(file)
+        
+        # Write headers
+        writer.writerow(["x", "y", "theta"])
+        
+        for (x, y, theta) in path_demo:
+            writer.writerow([x, y, theta])
         
     
     iterations_list[0] = iterations
