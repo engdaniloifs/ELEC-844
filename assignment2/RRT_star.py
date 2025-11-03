@@ -92,7 +92,7 @@ def rewire(nodes, edges, new_node, solution_length, obstacles,edges_plot,step_si
     return  edges, solution_length
 
 
-def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = False):
+def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,trial,plot = False):
     # with plot on
     np.random.seed(trial)
     if plot:
@@ -120,7 +120,7 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = Fal
         edges_plot = {}
         iterations = 0
 
-        while iterations < 5000:
+        while iterations < max_iterations:
 
             random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
             print("Iteration:",iterations)
@@ -135,31 +135,41 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = Fal
                 plt.plot(new_node[0], new_node[1], 'go', markersize=2)  
                 edges_plot[(node_best,new_node)] = line
                 edges, solution_length = rewire(nodes, edges, new_node, solution_length, obstacles,edges_plot,step_size)
-                
-        node = goal
-        path = []
-        while node != start:
-            edge = None
-            for (n1, n2) in edges:
-                if n2 == node:
-                    edge = (n1, n2)
-                    break
-            if edge in edges:
-                path.append(edge)
-            node = n1
-        
-        for (p, c) in reversed(path):   # go from start → goal
-            x1, y1 = p
-            x2, y2 = c
-            plt.plot([x1, x2], [y1, y2], 'r-', linewidth=1)  
+        if goal in nodes:
+            input ("goal found")
+            node = goal
+            path = []
+            while node != start:
+                edge = None
+                for (n1, n2) in edges:
+                    if n2 == node:
+                        edge = (n1, n2)
+                        break
+                if edge in edges:
+                    path.append(edge)
+                node = n1
             
+            for (p, c) in reversed(path):   # go from start → goal
+                x1, y1 = p
+                x2, y2 = c
+                plt.plot([x1, x2], [y1, y2], 'r-', linewidth=1)  
+                
 
-        plt.title(f"RRT Finished - Trial number {trial+1}")
-        print("Iterations:",iterations)
-        print("Vertices:",len(nodes))
-        print("Solution length:", solution_length[goal])
-        plt.show()
-        return iterations, len(nodes), solution_length[goal]
+            plt.title(f"RRT Finished - Trial number {trial+1}")
+            print("Iterations:",iterations)
+            print("Vertices:",len(nodes))
+            print("Solution length:", solution_length[goal])
+            plt.show()
+            return iterations, len(nodes), solution_length[goal]
+        else:
+            solution_length[goal] = np.inf
+            plt.title(f"RRT Finished - Trial number {trial+1}")
+            print("Iterations:",iterations)
+            print("Vertices:",len(nodes))
+            print("Solution length:", solution_length[goal])
+            plt.clf()
+            #plt.show()
+            return iterations, len(nodes), solution_length[goal]
     
     #without plot on
     X = [xlim, ylim]
@@ -198,6 +208,7 @@ def main():
     epsilon = 0.01
     step_size = 2.5
     trials_number = 100
+    max_iterations = 500
 
     gap_width = 25
     obstacles = [((50,50),(10,100-2*gap_width))] # first question scenario
@@ -216,7 +227,7 @@ def main():
     
     
     
-    iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial = 0,plot = True)
+    iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,trial = 0,plot = True)
     
     iterations_list[0] = iterations
     vertices_list[0] = vertices
@@ -225,9 +236,11 @@ def main():
     
 
     for trial in range(1,trials_number):
-
-        iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial)
-    
+        if solution_length == np.inf:
+            iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,trial, plot = True)
+        else:
+            iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial)
+        
         iterations_list[trial] = iterations
         vertices_list[trial] = vertices
         solution_length_list[trial] = solution_length
