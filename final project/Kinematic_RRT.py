@@ -107,8 +107,6 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,car_variables,tr
             random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
             nearest_node = find_nearest_node(nodes,random_node)
             new_node,cost,is_edge_valid = steer(nearest_node, random_node, step_size,car_variables,obstacles,goal)
-            if iterations % 1000 == 0:
-                plt.pause(1)
             if is_edge_valid:
                 t_elapsed = time.time() - t_inicial
 
