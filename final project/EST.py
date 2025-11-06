@@ -4,12 +4,13 @@ from matplotlib import patches
 import random
 import time
 
-def check_goal_zone(nodes,goal,threshold=0.1):
+def check_goal_zone(nodes,goal,threshold=0.05):
     for node in nodes:
         dist = distance(node, goal)
         if dist <= threshold:
             #print("Node",node,"is within goal threshold:",dist)
-            if abs(wrap_to_pi(node[2] - goal[2]))< np.deg2rad(45):
+            
+            #if abs(wrap_to_pi(node[2] - goal[2]))< np.deg2rad(45):
                 input("should stop now")
                 return False
     return True
@@ -28,8 +29,8 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle)
     if flag_obstacle:
         for node1 in nodes:
             if distance(node1,new_node) < radius_density:
-                if abs(wrap_to_pi(node1[2] - new_node[2]))< np.deg2rad(45):
-                    w[node1] +=  1000
+                #if abs(wrap_to_pi(node1[2] - new_node[2]))< np.deg2rad(45):
+                    w[node1] +=  100
     max_w = max(w.values())
     for node in nodes:
         w_line[node] = max_w + 1 - w[node]
@@ -49,10 +50,10 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle)
 
 
 
-def forward_propagate(state, control_input, step_time,car_track_length,obstacles,car_size):
-    x, y, theta = state
+def forward_propagate(state, control_input, step_time,car_track_length,obstacles):
+    x, y = state
     v = 0.2 
-    delta = control_input
+    theta = control_input
     L = car_track_length
     #print("Forward propagate from:",state,"with steering:",delta)
     #time.sleep(1)
@@ -60,45 +61,36 @@ def forward_propagate(state, control_input, step_time,car_track_length,obstacles
     for _ in range(10):
         x_new = x + v * np.cos(theta) * little_step
         y_new = y + v * np.sin(theta) * little_step
-        theta_new = theta + (v / L) * np.tan(delta) * little_step
-        theta_new = wrap_to_pi(theta_new)
-        x, y, theta = x_new, y_new, theta_new
-        if is_in_obstacle((x_new,y_new,theta_new),obstacles,car_size):
-            return (x_new, y_new, theta_new), False
+        #theta_new = theta + (v / L) * np.tan(delta) * little_step
+        #theta_new = wrap_to_pi(theta_new)
+        x, y = x_new, y_new#, theta_new
+        if is_in_obstacle((x_new,y_new),obstacles):
+            return (x_new, y_new), False
         if not (-2 <= x_new <= 2 and -2 <= y_new <= 2):
-            return (x_new, y_new, theta_new), False
+            return (x_new, y_new), False
 
-    return (x, y, theta), True
+    return (x, y), True
 
-def is_in_obstacle(point,obstacles,car_size = None):
-    px, py, ptheta = point
-    
+def is_in_obstacle(point,obstacles):
+    px, py = point
+
     for (ox, oy), (w, h) in obstacles:
         dx = px - ox
         dy = py - oy
-        if car_size:
-            width_car, length_car = car_size
-            c = abs(np.cos(ptheta))
-            s = abs(np.sin(ptheta))
-            obstacle_check_x = w/2 + (width_car/2)*c + (length_car/2)*s
-            obstacle_check_y = h/2 + (width_car/2)*s + (length_car/2)*c
-        else:
-            obstacle_check_x = w/2
-            obstacle_check_y = h/2
-        if abs(dx) <= obstacle_check_x and abs(dy) <= obstacle_check_y:
+        if abs(dx) <= w / 2 and abs(dy) <= h / 2:
             return True
     return False
 
-def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial = 0,plot = False):
+def build_EST(start,goal,X,obstacles,radius_density, control_limits, step_time,L,trial = 0,plot = False):
     nodes = [start]
     if plot:
-        x_start,y_start, theta_start = start 
-        x_goal,y_goal,theta_goal = goal
+        x_start,y_start = start 
+        x_goal,y_goal = goal
         plt.figure(figsize=(10, 10))
         plt.plot(x_start,y_start, 'bo', markersize=7, label="Start")
-        plt.quiver(x_start, y_start, 0.03*np.cos(theta_start), 0.03*np.sin(theta_start), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+        #plt.quiver(x_start, y_start, 0.03*np.cos(theta_start), 0.03*np.sin(theta_start), angles='xy', scale_units='xy', scale=0.3, width=0.003)
         plt.plot(x_goal,y_goal, 'ro', markersize=7, label="Goal")
-        plt.quiver(x_goal, y_goal, 0.03*np.cos(theta_goal), 0.03*np.sin(theta_goal), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+        #plt.quiver(x_goal, y_goal, 0.03*np.cos(theta_goal), 0.03*np.sin(theta_goal), angles='xy', scale_units='xy', scale=0.3, width=0.003)
         plt.xlim(X[0])
         plt.ylim(X[1])
         plt.title("EST in progress")
@@ -131,8 +123,8 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
             print("iteration:",iterations)  
             if iterations % 1000 == 0:
                 plt.pause(5)
-            control_input = np.random.choice(discrete_steerings)
-            x_new,free_of_obstacles = forward_propagate(v_src, control_input, step_time,L,obstacles,car_size)
+            control_input = np.random.uniform(*X[2])
+            x_new,free_of_obstacles = forward_propagate(v_src, control_input, step_time,L,obstacles)
             if free_of_obstacles:
                 nodes.append(x_new)
                 w [x_new]= 0 
@@ -142,8 +134,8 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
                 if plot:
                     plt.plot([v_src[0], x_new[0]], [v_src[1], x_new[1]], color='black')  
                     plt.plot(x_new[0], x_new[1], 'go', markersize=2)  
-                    plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
-                                0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+                    #plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
+                    #            0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
                     #plt.pause(0.1)
         
         node = x_new
@@ -159,9 +151,10 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
             node = n1
         path_demo = []
         for (p, c) in reversed(path):   # go from start → goal
-            x1, y1,theta1 = p
-            x2, y2,theta2 = c
-            path_demo.append((x1,y1,theta1))
+            x1, y1 = p
+            x2, y2 = c
+            #
+            # path_demo.append((x1,y1,theta1))
             plt.plot([x1, x2], [y1, y2], 'r-', linewidth=1)  
         path_demo.append(goal)
         plt.pause(1)
@@ -178,12 +171,12 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
 
 def main():
 
-    xlim,ylim,thetalim = (-2, 2),(-2,2), (-np.pi, np.pi)
-    start = (-1.5, 0, np.deg2rad(0))
-    goal = (0.75, 0, np.deg2rad(90))
+    xlim,ylim,thetalim = (-2, 2),(-2,2),(-np.pi,np.pi)
+    start = (-1.5, 0)
+    goal = (0.75, 0)
     control_limits = [(0,1), (-0.5,0,0.5)] # speed, steering angle
-    radius_density = 0.3
-    step_time = 1.5
+    radius_density = 0.4
+    step_time = 2
     trials_number = 100
 
     X = [xlim,ylim,thetalim]
@@ -195,15 +188,11 @@ def main():
     vertices_list = np.zeros(trials_number,dtype=float)
     solution_length_list = np.zeros(trials_number,dtype=float)
     
-    width =  0.25
-    length = 0.45
-    L = 0.256 # The vehicle's track length.
-    #car_variables = [speed,maximum_steering, L]
-    car_size = [width, length]
+    L= 0.256
 
 
     iterations, vertices, solution_length, = build_EST(start,goal,X,obstacles,radius_density,
-                                                        car_size,step_time, L,trial = 0,plot = True)
+                                                        control_limits,step_time, L,trial = 0,plot = True)
 
 if __name__ == "__main__":
     main()

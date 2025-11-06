@@ -5,13 +5,22 @@ import time
 import csv
 
 
-def is_in_obstacle(point,obstacles):
-    px, py = point
-
+def is_in_obstacle(point,obstacles,car_size = None):
+    px, py, ptheta = point
+    
     for (ox, oy), (w, h) in obstacles:
         dx = px - ox
         dy = py - oy
-        if abs(dx) <= w / 2 and abs(dy) <= h / 2:
+        if car_size:
+            width_car, length_car = car_size
+            c = abs(np.cos(ptheta))
+            s = abs(np.sin(ptheta))
+            obstacle_check_x = w/2 + (width_car/2)*c + (length_car/2)*s
+            obstacle_check_y = h/2 + (width_car/2)*s + (length_car/2)*c
+        else:
+            obstacle_check_x = w/2
+            obstacle_check_y = h/2
+        if abs(dx) <= obstacle_check_x and abs(dy) <= obstacle_check_y:
             return True
     return False
 
@@ -25,7 +34,7 @@ def sample(X, epsilon,goal,obstacles,iterations,random_node=None):
         while random_node is None or inside_obstacle:
             random_node = (np.random.uniform(*X[0]), np.random.uniform(*X[1]),np.random.uniform(*X[2]))
             
-            inside_obstacle = is_in_obstacle(random_node[:-1],obstacles)
+            inside_obstacle = is_in_obstacle(random_node,obstacles)
             iterations += 1
        
     return random_node, iterations
@@ -33,7 +42,7 @@ def sample(X, epsilon,goal,obstacles,iterations,random_node=None):
 def find_nearest_node(nodes, point): 
     return min(nodes, key=lambda node: metric(node, point))
 
-def metric(node1,node2,w_angle = 1.5,w_angle_to_go = 0.5):
+def metric(node1,node2,w_angle = 2,w_angle_to_go = 0.5):
         pos_diff = distance(node1[:2], node2[:2])
         ang_diff = abs(np.arctan2(np.sin(node1[2]-node2[2]), np.cos(node1[2]-node2[2])))  # wrap angle
         ang_to_go = wrap_to_pi(node1[2] - np.atan2(node2[1] - node1[1], node2[0] - node1[0]))
@@ -46,13 +55,13 @@ def distance(node1, node2):
 def wrap_to_pi(a):
     return (a + np.pi) % (2*np.pi) - np.pi
 
-def steer(nearest, point, step_size,car_variables,obstacles,goal):
+def steer(nearest, point, step_size,car_variables,car_size,obstacles,goal):
     speed = car_variables[0]
     maximum_steering = car_variables[1]
     L = car_variables[2]
     step_time = step_size/speed
     T = 0
-    t = step_time/5
+    t = step_time/10
     x_new = nearest[0]
     y_new = nearest[1]
     theta_new = nearest[2]
@@ -70,18 +79,18 @@ def steer(nearest, point, step_size,car_variables,obstacles,goal):
 
         
 
-        if is_in_obstacle((x_new,y_new),obstacles):
+        if is_in_obstacle((x_new,y_new,theta_new),obstacles,car_size):
             return (x_new, y_new, theta_new),step_size, False
         T += t
     #distance_to_goal = metric((x_new,y_new,theta_new),goal,w_angle=0.5,w_angle_to_go=0)
-    if (distance((x_new,y_new,theta_new),goal) < step_size) and (abs(wrap_to_pi(theta_new - goal[2]))< np.deg2rad(15)):
+    if (distance((x_new,y_new,theta_new),goal) < step_size) and (abs(wrap_to_pi(theta_new - goal[2]))< np.deg2rad(20)):
         #input("close to goal")
         x_new, y_new, theta_new = goal
 
     return (x_new, y_new,theta_new), step_size, True
 
 
-def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_variables,trial,plot = False):
+def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_variables,car_size,trial,plot = False):
     # with plot on
     #np.random.seed(trial)
     if plot:
@@ -118,11 +127,12 @@ def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_variables,trial,plot
         while goal not in nodes:
             print("iteration:",iterations)
             if iterations % 1000 == 0:
-                plt.pause(0.1)
+                plt.pause(4)
             
             random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
             nearest_node = find_nearest_node(nodes,random_node)
-            new_node,cost,is_edge_valid = steer(nearest_node, random_node, step_size,car_variables,obstacles,goal)
+            new_node,cost,is_edge_valid = steer(nearest_node, random_node, step_size,
+                                                car_variables,car_size,obstacles,goal)
             if is_edge_valid:
         #        t_elapsed = time.time() - t_inicial
 
@@ -138,7 +148,7 @@ def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_variables,trial,plot
                 plt.plot(new_node[0], new_node[1], 'go', markersize=2)  
                 plt.quiver(new_node[0], new_node[1], 0.03*np.cos(new_node[2]),
                             0.03*np.sin(new_node[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
-            if iterations % 10000 == 0:
+            if iterations % 20000 == 0:
                 print("path not found ")
                 return None,None,None,None,None,None
                 
@@ -200,57 +210,59 @@ def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_variables,trial,plot
 def main():
 
     xlim,ylim,thetalim = (-2, 2),(-2,2), (-np.pi, np.pi)
-    start = (-0.75, 0, np.deg2rad(0))
-    goal = (0.75, 0, np.deg2rad(90))
-    epsilon = 0.01
+    start = (-1.2, 0, np.deg2rad(0))
+    goal = (1.2, 0, np.deg2rad(0))
+    epsilon = 0.02
     step_size = 0.1
     trials_number = 100
 
     X = [xlim,ylim,thetalim]
 
     #gap_width = 10
-    obstacles = [((0,0),(0.22,1.5))]
+    obstacles = [((0,0),(0.12,1.3))]
     
     iterations_list = np.zeros(trials_number,dtype=float)
     vertices_list = np.zeros(trials_number,dtype=float)
     solution_length_list = np.zeros(trials_number,dtype=float)
     
     #car_variables
-    maximum_steering = 0.5 #rad
+    maximum_steering = 0.55 #rad
     speed = 0.2 #
+    width =  0.25
+    length = 0.45
     L = 0.256 # The vehicle's track length.
     car_variables = [speed,maximum_steering, L]
-
+    car_size = [width, length]
 
     iterations, vertices, solution_length, nodes_demo, edges_demo, path_demo = build_RRT(start,goal,X,obstacles,epsilon,
-                                                        step_size,car_variables,trial = 0,plot = True)
+                                                        step_size,car_variables,car_size, trial = 0,plot = True)
     
-    # with open("tree.csv", mode="w", newline="") as file:
-    #     writer = csv.writer(file)
+    with open("tree.csv", mode="w", newline="") as file:
+        writer = csv.writer(file)
         
         # Write headers
-        # writer.writerow(["node sampled, edge_created"])
-        # writer.writerow([
-        #     "x", "y", "theta", "time",        # node sampled
-        #     "x1", "y1", "theta1",             # edge start
-        #     "x2", "y2", "theta2", "time"        # edge end/time
-        #     ])
+        writer.writerow(["node sampled, edge_created"])
+        writer.writerow([
+            "x", "y", "theta", "time",        # node sampled
+            "x1", "y1", "theta1",             # edge start
+            "x2", "y2", "theta2", "time"        # edge end/time
+            ])
     
     # Write each node and corresponding edge
-        # for ((x, y, theta), t), ((n1, n2), t_elapsed) in zip(nodes_demo, edges_demo):
-        #     (x1, y1, theta1) = n1
-        #     (x2, y2, theta2) = n2
-        #     writer.writerow([x, y, theta, t, x1, y1, theta1, x2, y2, theta2, t_elapsed])
+        for ((x, y, theta), t), ((n1, n2), t_elapsed) in zip(nodes_demo, edges_demo):
+            (x1, y1, theta1) = n1
+            (x2, y2, theta2) = n2
+            writer.writerow([x, y, theta, t, x1, y1, theta1, x2, y2, theta2, t_elapsed])
 
 # Separate with open (same indentation)
-    # with open("path.csv", mode="w", newline="") as file:
-    #     writer = csv.writer(file)
+    with open("path.csv", mode="w", newline="") as file:
+        writer = csv.writer(file)
         
-    #     # Write headers
-    #     writer.writerow(["x", "y", "theta"])
+        # Write headers
+        writer.writerow(["x", "y", "theta"])
         
-    #     for (x, y, theta) in path_demo:
-    #         writer.writerow([x, y, theta])
+        for (x, y, theta) in path_demo:
+            writer.writerow([x, y, theta])
         
     
     iterations_list[0] = iterations
