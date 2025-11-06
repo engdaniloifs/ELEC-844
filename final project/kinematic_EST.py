@@ -2,13 +2,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import patches
 import random
+import time
 
-
-def check_goal_zone(nodes,goal,threshold=0.1):
+def check_goal_zone(nodes,goal,threshold=0.2):
     for node in nodes:
         dist = distance(node, goal)
-        if dist <= threshold and abs(wrap_to_pi(node[2] - goal[2]))< np.deg2rad(15):
-            return False
+        if dist <= threshold:
+            #print("Node",node,"is within goal threshold:",dist)
+            if abs(wrap_to_pi(node[2] - goal[2]))< np.deg2rad(20):
+                input("should stop now")
+                return False
     return True
 
 def distance(node1, node2):
@@ -17,15 +20,16 @@ def distance(node1, node2):
 def wrap_to_pi(a):
     return (a + np.pi) % (2*np.pi) - np.pi
 
-def sample_random_node(nodes,radius_density,iterations):
+def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle):
     iterations += 1
     w_line = {}
-    w = {node:0 for node in nodes}
+    
     p = {}
-    for node1 in nodes:
-        for node2 in nodes:
-            if distance(node1,node2) < radius_density:
-                w[node1] += 1
+    if flag_obstacle:
+        for node1 in nodes:
+            if distance(node1,new_node) < radius_density:
+                if abs(wrap_to_pi(node1[2] - new_node[2]))< np.deg2rad(15):
+                    w[node1] +=  1
     max_w = max(w.values())
     for node in nodes:
         w_line[node] = max_w + 1 - w[node]
@@ -33,16 +37,17 @@ def sample_random_node(nodes,radius_density,iterations):
     for node in nodes:
         p[node] = w_line[node] / sum_w_line
     selected_node = random.choices(nodes, weights=[p[node] for node in nodes], k=1)[0]
-    return selected_node,iterations
+    return selected_node,iterations,w
 
 
 
 def forward_propagate(state, control_input, step_time,car_track_length,obstacles):
     x, y, theta = state
-    v, delta = control_input
+    v = 0.2 
+    delta = control_input
     L = car_track_length
-    
-
+    #print("Forward propagate from:",state,"with steering:",delta)
+    #time.sleep(1)
     little_step = step_time / 10
     for _ in range(10):
         x_new = x + v * np.cos(theta) * little_step
@@ -51,6 +56,8 @@ def forward_propagate(state, control_input, step_time,car_track_length,obstacles
         theta_new = wrap_to_pi(theta_new)
         x, y, theta = x_new, y_new, theta_new
         if is_in_obstacle((x_new,y_new),obstacles):
+            return (x_new, y_new, theta_new), False
+        if not (-2 <= x_new <= 2 and -2 <= y_new <= 2):
             return (x_new, y_new, theta_new), False
 
     return (x, y, theta), True
@@ -98,24 +105,29 @@ def build_EST(start,goal,X,obstacles,radius_density, control_limits, step_time,L
 
         iterations = 0
         plt.pause(0.1)
+        x_new = start
+        w = {start:0}
+        discrete_steerings = [-0.5, 0, 0.5]
+        free_of_obstacles = True
         while check_goal_zone(nodes,goal):
-            v_src,iterations = sample_random_node(nodes,radius_density,iterations)
-            print("iteration:",iterations)
+            v_src,iterations,w = sample_random_node(nodes,x_new,radius_density,iterations,w,free_of_obstacles)
+            print("iteration:",iterations)  
             if iterations % 1000 == 0:
-                plt.pause(0.1)
-            control_input = (np.random.uniform(*control_limits[0]), np.random.uniform(*control_limits[1]))
+                plt.pause(5)
+            control_input = np.random.choice(discrete_steerings)
             x_new,free_of_obstacles = forward_propagate(v_src, control_input, step_time,L,obstacles)
             if free_of_obstacles:
                 nodes.append(x_new)
+                w [x_new]= 0 
                 edges.append((v_src, x_new))
-                solution_length[x_new] = solution_length[v_src] + step_time * abs(control_input[0])
+                solution_length[x_new] = solution_length[v_src] + step_time * 0.2
                 
                 if plot:
                     plt.plot([v_src[0], x_new[0]], [v_src[1], x_new[1]], color='black')  
                     plt.plot(x_new[0], x_new[1], 'go', markersize=2)  
                     plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
                                 0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
-                    plt.pause(0.1)
+                    #plt.pause(0.1)
         
         node = goal
         path = []
@@ -137,10 +149,11 @@ def build_EST(start,goal,X,obstacles,radius_density, control_limits, step_time,L
         path_demo.append(goal)
         plt.pause(1)
         plt.title(f"EST Finished - Trial number {trial+1}")
+        plt.show()
         print("Iterations:",iterations)
         print("Vertices:",len(nodes))
         print("Solution length:", solution_length[goal])
-        plt.show()
+        
         return iterations, len(nodes), solution_length[goal], path_demo
                     
 
@@ -151,9 +164,9 @@ def main():
     xlim,ylim,thetalim = (-2, 2),(-2,2), (-np.pi, np.pi)
     start = (-0.75, 0, np.deg2rad(0))
     goal = (0.75, 0, np.deg2rad(90))
-    control_limits = [(0,1), (-0.5,0.5)] # speed, steering angle
+    control_limits = [(0,1), (-0.5,0,0.5)] # speed, steering angle
     radius_density = 0.2
-    step_time = 0.2
+    step_time = 1.5
     trials_number = 100
 
     X = [xlim,ylim,thetalim]

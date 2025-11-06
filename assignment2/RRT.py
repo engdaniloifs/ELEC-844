@@ -152,13 +152,13 @@ def main():
     step_size = 2.5
     trials_number = 100
 
-    #gap_width = 4
-    #obstacles = [((50,50),(10,100-2*gap_width))] # first question scenario
+    gap_width = 4
+    obstacles = [((50,50),(10,100-2*gap_width))] # first question scenario
     # second question scenario
     # scenario 1
     #obstacles = [((25,37.5),(20,5)), ((25,62.5),(20,5)), ((37.5,50),(5,30)), ((12.5,41.5),(5,13)), ((12.5,58.5),(5,13))] 
     # scenario 2
-    obstacles = [((75,37.5),(20,5)), ((75,62.5),(20,5)), ((62.5,50),(5,30)), ((87.5,41.5),(5,13)), ((87.5,58.5),(5,13))] 
+    #obstacles = [((75,37.5),(20,5)), ((75,62.5),(20,5)), ((62.5,50),(5,30)), ((87.5,41.5),(5,13)), ((87.5,58.5),(5,13))] 
     # scenario 3
     #obstacles = [((25,37.5),(20,5)), ((25,62.5),(20,5)), ((37.5,50),(5,30)), ((12.5,41.5),(5,13)), ((12.5,58.5),(5,13)), 
                #  ((75,37.5),(20,5)), ((75,62.5),(20,5)), ((62.5,50),(5,30)), ((87.5,41.5),(5,13)), ((87.5,58.5),(5,13))] 
@@ -194,6 +194,27 @@ def main():
     print("Vertices median:",vertices_median)
     print("Solution length median:", solution_length_median)
 
+    max_value = max(max(iterations_list), max(vertices_list)) + 10  # for better visualization
+
+    plt.figure(figsize=(6,4))
+    plt.hist(iterations_list, bins=10, color='skyblue', edgecolor='black')
+    plt.title("Iterations to Find Solution")
+    plt.xlabel("Number of Iterations")
+    plt.ylabel("Frequency")
+    plt.xlim(0, max_value)  # same x-axis range
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.show()
+
+    plt.figure(figsize=(6,4))
+    plt.hist(vertices_list, bins=10, color='salmon', edgecolor='black')
+    plt.title("Vertices to Find Solution")
+    plt.xlabel("Number of Vertices")
+    plt.ylabel("Frequency")
+    plt.xlim(0, max_value)  # same x-axis range
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     main()

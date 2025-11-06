@@ -70,26 +70,45 @@ def find_best_parent(nodes,new_node,solution_length,obstacles,step_size):
     return best_parent, min_cost
 
 
-def rewire(nodes, edges, new_node, solution_length, obstacles,edges_plot,step_size):
-    k = np.e*(1+0.5)*np.log(len(nodes))
-    number_of_neighbors = int(np.ceil(k))
-    neighbors = sorted(nodes, key=lambda node: distance(node, new_node))[:number_of_neighbors]
-    
-    for neighbor in neighbors:
-        if neighbor == new_node:
-            continue
-        if is_edge_valid(new_node, neighbor, obstacles):
-                new_cost = solution_length[new_node] + distance(new_node, neighbor)
-                if new_cost < solution_length[neighbor]:
-                    if (neighbor,new_node) not in edges:
-                        for i, (n1, n2) in enumerate(edges):
-                            if n2 == neighbor:
-                                edges[i] = (new_node, neighbor)
-                                edges_plot[(n1,n2)].remove()
-                                edges_plot[(new_node,neighbor)], = plt.plot([new_node[0], neighbor[0]], [new_node[1], neighbor[1]], color='black')
-                                break
-                        solution_length[neighbor] = new_cost
-    return  edges, solution_length
+def rewire(nodes, edges, new_node, solution_length, obstacles,plot,edges_plot = None):
+    if plot:
+        k = np.e*(1+0.5)*np.log(len(nodes))
+        number_of_neighbors = int(np.ceil(k))
+        neighbors = sorted(nodes, key=lambda node: distance(node, new_node))[:number_of_neighbors]
+        
+        for neighbor in neighbors:
+            if neighbor == new_node:
+                continue
+            if is_edge_valid(new_node, neighbor, obstacles):
+                    new_cost = solution_length[new_node] + distance(new_node, neighbor)
+                    if new_cost < solution_length[neighbor]:
+                        if (neighbor,new_node) not in edges:
+                            for i, (n1, n2) in enumerate(edges):
+                                if n2 == neighbor:
+                                    edges[i] = (new_node, neighbor)
+                                    edges_plot[(n1,n2)].remove()
+                                    edges_plot[(new_node,neighbor)], = plt.plot([new_node[0], neighbor[0]], [new_node[1], neighbor[1]], color='black')
+                                    break
+                            solution_length[neighbor] = new_cost
+        return  edges, solution_length
+    else:
+        k = np.e*(1+0.5)*np.log(len(nodes))
+        number_of_neighbors = int(np.ceil(k))
+        neighbors = sorted(nodes, key=lambda node: distance(node, new_node))[:number_of_neighbors]
+        
+        for neighbor in neighbors:
+            if neighbor == new_node:
+                continue
+            if is_edge_valid(new_node, neighbor, obstacles):
+                    new_cost = solution_length[new_node] + distance(new_node, neighbor)
+                    if new_cost < solution_length[neighbor]:
+                        if (neighbor,new_node) not in edges:
+                            for i, (n1, n2) in enumerate(edges):
+                                if n2 == neighbor:
+                                    edges[i] = (new_node, neighbor)
+                                    break
+                            solution_length[neighbor] = new_cost
+        return  edges, solution_length
 
 
 def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,trial,plot = False):
@@ -123,7 +142,6 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,t
         while iterations < max_iterations:
 
             random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
-            print("Iteration:",iterations)
             nearest_node = find_nearest_node(nodes,random_node)
             new_node = step(nearest_node, random_node, step_size)
             if is_edge_valid(nearest_node,new_node,obstacles):
@@ -134,9 +152,9 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,t
                 line,= plt.plot([node_best[0], new_node[0]], [node_best[1], new_node[1]], color='black')  
                 plt.plot(new_node[0], new_node[1], 'go', markersize=2)  
                 edges_plot[(node_best,new_node)] = line
-                edges, solution_length = rewire(nodes, edges, new_node, solution_length, obstacles,edges_plot,step_size)
+                edges, solution_length = rewire(nodes, edges, new_node, solution_length, obstacles,plot,edges_plot)
         if goal in nodes:
-            input ("goal found")
+            solution_found = True
             node = goal
             path = []
             while node != start:
@@ -155,48 +173,50 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,t
                 plt.plot([x1, x2], [y1, y2], 'r-', linewidth=1)  
                 
 
-            plt.title(f"RRT Finished - Trial number {trial+1}")
-            print("Iterations:",iterations)
-            print("Vertices:",len(nodes))
+            plt.title(f"RRT* Finished - Trial number {trial+1}")
+            print("Found goal:",solution_found)
             print("Solution length:", solution_length[goal])
             plt.show()
-            return iterations, len(nodes), solution_length[goal]
         else:
+            solution_found = False
             solution_length[goal] = np.inf
-            plt.title(f"RRT Finished - Trial number {trial+1}")
-            print("Iterations:",iterations)
-            print("Vertices:",len(nodes))
+            plt.title(f"RRT* Finished - Trial number {trial+1}")
+            print("Found goal:",solution_found)
             print("Solution length:", solution_length[goal])
             plt.clf()
             #plt.show()
-            return iterations, len(nodes), solution_length[goal]
+        return solution_found, solution_length[goal]
     
     #without plot on
     X = [xlim, ylim]
-    
+        
     nodes = [start]
     edges = []
     solution_length = {start: 0}
     iterations = 0
 
-    while goal not in nodes:
-
+    while iterations < max_iterations:
         random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
         nearest_node = find_nearest_node(nodes,random_node)
-        new_node,cost = step(nearest_node, random_node, step_size)
-
+        new_node = step(nearest_node, random_node, step_size)
         if is_edge_valid(nearest_node,new_node,obstacles):
-
+            node_best,cost = find_best_parent(nodes,new_node,solution_length,obstacles,step_size)
             nodes.append(new_node)
-            edges.append((nearest_node,new_node))
-            cost = solution_length[nearest_node]+ cost
+            edges.append((node_best,new_node))
             solution_length[new_node] = cost
+            edges, solution_length = rewire(nodes, edges, new_node, solution_length, obstacles,plot)
+    if goal in nodes:
+        solution_found = True
+        print("Found goal:",solution_found)
+        print("Solution length:", solution_length[goal])
 
-    print("Iterations:",iterations)
-    print("Vertices:",len(nodes))
-    print("Solution length:", solution_length[goal])
+    else:
+        solution_found = False
+        solution_length[goal] = np.inf
+        print("Found goal:",solution_found)
+        print("Solution length:", solution_length[goal])
+    return solution_found, solution_length[goal]
 
-    return iterations, len(nodes), solution_length[goal]
     
 
 
@@ -208,7 +228,7 @@ def main():
     epsilon = 0.01
     step_size = 2.5
     trials_number = 100
-    max_iterations = 500
+    max_iterations = 2500
 
     gap_width = 25
     obstacles = [((50,50),(10,100-2*gap_width))] # first question scenario
@@ -221,38 +241,38 @@ def main():
     #obstacles = [((25,37.5),(20,5)), ((25,62.5),(20,5)), ((37.5,50),(5,30)), ((12.5,41.5),(5,13)), ((12.5,58.5),(5,13)), 
                #  ((75,37.5),(20,5)), ((75,62.5),(20,5)), ((62.5,50),(5,30)), ((87.5,41.5),(5,13)), ((87.5,58.5),(5,13))] 
     
-    iterations_list = np.zeros(trials_number,dtype=float)
+    solution_found_list = np.zeros(trials_number,dtype=float)
     vertices_list = np.zeros(trials_number,dtype=float)
     solution_length_list = np.zeros(trials_number,dtype=float)
     
     
     
-    iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,trial = 0,plot = True)
-    
-    iterations_list[0] = iterations
-    vertices_list[0] = vertices
-    solution_length_list[0] = solution_length
+    solution_length = np.inf
 
     
-
-    for trial in range(1,trials_number):
-        if solution_length == np.inf:
-            iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,trial, plot = True)
+    flag = True
+    for trial in range(0,trials_number):
+        if solution_length == np.inf and flag == True:
+            solution_found, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,trial, plot = True)
         else:
-            iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial)
+            solution_found, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,max_iterations,trial)
+            flag = False
         
-        iterations_list[trial] = iterations
-        vertices_list[trial] = vertices
+        solution_found_list[trial] = solution_found
         solution_length_list[trial] = solution_length
         print("Trial:",trial+1)
+    print(solution_length_list)
+    solution_found_percentage = np.mean(solution_found_list)*100
 
-    iterations_median = np.median(iterations_list)
-    vertices_median = np.median(vertices_list)
-    solution_length_median = np.median(solution_length_list)
+    solution_length_q1 = np.percentile(solution_length_list,25)
+    solution_length_q2 = np.percentile(solution_length_list,50)
+    solution_length_q3 = np.percentile(solution_length_list,75)
 
-    print("Iterations median:",iterations_median)
-    print("Vertices median:",vertices_median)
-    print("Solution length median:", solution_length_median)
+    print("% Solved",f"{solution_found_percentage:.2f}")
+    print("first quartile:",solution_length_q1)
+    print("second quartile:", solution_length_q2)
+    print("third quartile:", solution_length_q3)
+    
 
 
 if __name__ == "__main__":
