@@ -3,16 +3,20 @@ import matplotlib.pyplot as plt
 from matplotlib import patches
 import random
 import time
+from scipy.spatial import cKDTree
 
-def check_goal_zone(nodes,goal,threshold=0.1):
+def check_goal_zone(nodes,goal,threshold=0.05):
     for node in nodes:
         dist = distance(node, goal)
         if dist <= threshold:
             #print("Node",node,"is within goal threshold:",dist)
-            if abs(wrap_to_pi(node[2] - goal[2]))< np.deg2rad(45):
+            if abs(wrap_to_pi(node[2] - goal[2]))< np.deg2rad(20):
                 input("should stop now")
                 return False
     return True
+
+
+
 
 def distance(node1, node2):
     return np.hypot(node1[0] - node2[0], node1[1] - node2[1])
@@ -20,43 +24,62 @@ def distance(node1, node2):
 def wrap_to_pi(a):
     return (a + np.pi) % (2*np.pi) - np.pi
 
-def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle):
+def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,p,last_max_w,w_line):
     iterations += 1
-    w_line = {}
     
-    p = {}
     if flag_obstacle:
-        for node1 in nodes:
-            if distance(node1,new_node) < radius_density:
-                if abs(wrap_to_pi(node1[2] - new_node[2]))< np.deg2rad(45):
-                    w[node1] +=  1000
-    max_w = max(w.values())
-    for node in nodes:
-        w_line[node] = max_w + 1 - w[node]
-    sum_w_line = sum(w_line.values())
-    for node in nodes:
-        p[node] = w_line[node] / sum_w_line
-    if iterations % 2000 == 0:
-        max_p = max(p.values())
-        print("Max selection probability:",max_p)
-        max_node = max(p, key=p.get)
-        plt.plot(max_node[0], max_node[1], 'mo', markersize=10)
-        plt.pause(1)
-        #input("Press Enter to continue...")
+        time_to_sample = time.time()
+        
+        changed_w = []
+        xy = np.array([[n[0], n[1]] for n in nodes])
+        kdt = cKDTree(xy)
 
+        # Find indices of nodes within radius_density
+        idxs = kdt.query_ball_point([new_node[0], new_node[1]], r=radius_density)
+
+        # For each neighbor, check the heading difference
+        
+        for i in idxs:
+            node1 = nodes[i]
+            if abs(wrap_to_pi(node1[2] - new_node[2])) < np.deg2rad(45):
+                w[node1] += 1000
+                changed_w.append(i)
+        max_w = max(w.values())
+        if max_w > last_max_w:
+            p = {}
+            w_line = {}
+            last_max_w = max_w
+            for node in nodes:
+                w_line[node] = max_w + 1 - w[node]
+            sum_w_line = sum(w_line.values())
+            for node in nodes:
+                p[node] = w_line[node] / sum_w_line
+        else:
+            for i in changed_w:
+                node1 = nodes[i]
+                w_line[node1] = last_max_w + 1 - w[node1]
+            sum_w_line = sum(w_line.values())
+            for i in changed_w:
+                node1 = nodes[i]
+                p[node1] = w_line[node1] / sum_w_line
+        time_to_sample_end = time.time() - time_to_sample
+        if iterations > 5000:
+            print("Time to sample and update weights (s):", time_to_sample_end)
+            input("Press Enter to continue...")
+    
     selected_node = random.choices(nodes, weights=[p[node] for node in nodes], k=1)[0]
-    return selected_node,iterations,w
+    return selected_node,iterations,w, p,last_max_w,w_line,
 
 
 
 def forward_propagate(state, control_input, step_time,car_track_length,obstacles,car_size):
     x, y, theta = state
-    v = 0.2 
+    v = 0.1 
     delta = control_input
     L = car_track_length
     #print("Forward propagate from:",state,"with steering:",delta)
     #time.sleep(1)
-    little_step = step_time / 10
+    little_step = step_time / 20
     for _ in range(10):
         x_new = x + v * np.cos(theta) * little_step
         y_new = y + v * np.sin(theta) * little_step
@@ -121,16 +144,24 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
         solution_length = {start: 0}
 
         iterations = 0
-        plt.pause(0.1)
+        #plt.pause(0.1)
         x_new = start
         w = {start:0}
-        discrete_steerings = [-0.5, 0, 0.5]
+        discrete_steerings = [-0.6, 0, 0.6]
         free_of_obstacles = True
+        t_inicial = time.time()
+        p = {}
+        last_max_w = 0
+        w_line = {}
         while check_goal_zone(nodes,goal):
-            v_src,iterations,w = sample_random_node(nodes,x_new,radius_density,iterations,w,free_of_obstacles)
-            print("iteration:",iterations)  
+            v_src,iterations,w,p,last_max_w,w_line = sample_random_node(nodes,x_new,radius_density,iterations,w,free_of_obstacles,p,last_max_w,w_line)
             if iterations % 1000 == 0:
-                plt.pause(5)
+                print("Iterations:",iterations)
+                t_elapsed = time.time() - t_inicial
+                print("Elapsed time (s):", t_elapsed)  
+            if iterations % 15000 == 0:
+                plt.pause(15)
+                input("Press Enter to continue...")
             control_input = np.random.choice(discrete_steerings)
             x_new,free_of_obstacles = forward_propagate(v_src, control_input, step_time,L,obstacles,car_size)
             if free_of_obstacles:
@@ -180,10 +211,13 @@ def main():
 
     xlim,ylim,thetalim = (-2, 2),(-2,2), (-np.pi, np.pi)
     start = (-1.5, 0, np.deg2rad(0))
-    goal = (0.75, 0, np.deg2rad(90))
+    goal = (0.75, 0, np.deg2rad(0))
     control_limits = [(0,1), (-0.5,0,0.5)] # speed, steering angle
-    radius_density = 0.3
-    step_time = 1.5
+    
+    step_size = 0.5
+    radius_density = step_size/2
+    speed = 0.1
+    step_time = step_size / speed
     trials_number = 100
 
     X = [xlim,ylim,thetalim]
