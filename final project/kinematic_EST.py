@@ -33,39 +33,47 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,
         changed_w = []
         xy = np.array([[n[0], n[1]] for n in nodes])
         kdt = cKDTree(xy)
-
+        sum_w_line = 0
         # Find indices of nodes within radius_density
         idxs = kdt.query_ball_point([new_node[0], new_node[1]], r=radius_density)
 
         # For each neighbor, check the heading difference
+        last_max_w_changed = False
         
         for i in idxs:
             node1 = nodes[i]
             if abs(wrap_to_pi(node1[2] - new_node[2])) < np.deg2rad(45):
                 w[node1] += 1000
+                if w[node1] > last_max_w:
+                    last_max_w_changed = True
+                    last_max_w = w[node1]
                 changed_w.append(i)
-        max_w = max(w.values())
-        if max_w > last_max_w:
+
+        if last_max_w_changed:
+            
             p = {}
+            
             w_line = {}
-            last_max_w = max_w
+            
             for node in nodes:
-                w_line[node] = max_w + 1 - w[node]
-            sum_w_line = sum(w_line.values())
+                w_line[node] = last_max_w + 1 - w[node]
+                sum_w_line += w_line[node]
             for node in nodes:
                 p[node] = w_line[node] / sum_w_line
         else:
             for i in changed_w:
                 node1 = nodes[i]
                 w_line[node1] = last_max_w + 1 - w[node1]
-            sum_w_line = sum(w_line.values())
+                sum_w_line += w_line[node1]
             for i in changed_w:
                 node1 = nodes[i]
                 p[node1] = w_line[node1] / sum_w_line
-        time_to_sample_end = time.time() - time_to_sample
-        if iterations > 5000:
-            print("Time to sample and update weights (s):", time_to_sample_end)
-            input("Press Enter to continue...")
+        if iterations > 1000 :
+            time_to_sample_end = time.time() - time_to_sample
+            
+            #print("Time to sample weights (s):", time_to_sample_end)
+            #input("Press Enter to continue...")
+        
     
     selected_node = random.choices(nodes, weights=[p[node] for node in nodes], k=1)[0]
     return selected_node,iterations,w, p,last_max_w,w_line,
@@ -80,6 +88,7 @@ def forward_propagate(state, control_input, step_time,car_track_length,obstacles
     #print("Forward propagate from:",state,"with steering:",delta)
     #time.sleep(1)
     little_step = step_time / 20
+    time_elapsed = time.time()
     for _ in range(10):
         x_new = x + v * np.cos(theta) * little_step
         y_new = y + v * np.sin(theta) * little_step
@@ -90,7 +99,9 @@ def forward_propagate(state, control_input, step_time,car_track_length,obstacles
             return (x_new, y_new, theta_new), False
         if not (-2 <= x_new <= 2 and -2 <= y_new <= 2):
             return (x_new, y_new, theta_new), False
-
+    time_elapsed = time.time() - time_elapsed
+    
+    #input("Time for forward propagate (s):"+str(time_elapsed))
     return (x, y, theta), True
 
 def is_in_obstacle(point,obstacles,car_size = None):
@@ -149,16 +160,21 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
         w = {start:0}
         discrete_steerings = [-0.6, 0, 0.6]
         free_of_obstacles = True
-        t_inicial = time.time()
+        
         p = {}
         last_max_w = 0
         w_line = {}
+        t_inicial = time.time()
         while check_goal_zone(nodes,goal):
+            
+            # if iterations % 2000 == 0 and iterations > 0:
+            #     print("Iterations:",iterations)
+            #     t_elapsed = time.time() - t_inicial
+            #     print("Elapsed time (s):", t_elapsed) 
+            #     input("Press Enter to continue...")
             v_src,iterations,w,p,last_max_w,w_line = sample_random_node(nodes,x_new,radius_density,iterations,w,free_of_obstacles,p,last_max_w,w_line)
-            if iterations % 1000 == 0:
-                print("Iterations:",iterations)
-                t_elapsed = time.time() - t_inicial
-                print("Elapsed time (s):", t_elapsed)  
+            if iterations >1000:
+                t_initial_loop = time.time()
             if iterations % 15000 == 0:
                 plt.pause(15)
                 input("Press Enter to continue...")
@@ -176,6 +192,14 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
                     plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
                                 0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
                     #plt.pause(0.1)
+            if iterations >2000:
+                t_end_loop = time.time()
+                time_loop = t_end_loop - t_initial_loop
+                if time_loop > 0.002:
+                    time_run = time.time() - t_inicial
+                    print("time run", time_run)
+                    print("iterations:",iterations)
+                    input(time_loop)
         
         node = x_new
         path = []
