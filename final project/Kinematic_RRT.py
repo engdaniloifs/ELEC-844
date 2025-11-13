@@ -125,32 +125,32 @@ def steer(nearest, point, step_size,car_parameters,obstacles,goal):
 
 def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_parameters,trial,plot = False):
     # with plot on
-    np.random.seed(20)
+    np.random.seed(trial)
     if plot:
-        # x_start,y_start, theta_start = start 
-        # x_goal,y_goal,theta_goal = goal
-#         plt.figure(figsize=(10, 10))
-#         plt.plot(x_start,y_start, 'bo', markersize=7, label="Start")
-#         plt.quiver(x_start, y_start, 0.03*np.cos(theta_start), 0.03*np.sin(theta_start), angles='xy', scale_units='xy', scale=0.3, width=0.003)
-#         plt.plot(x_goal,y_goal, 'ro', markersize=7, label="Goal")
-#         plt.quiver(x_goal, y_goal, 0.03*np.cos(theta_goal), 0.03*np.sin(theta_goal), angles='xy', scale_units='xy', scale=0.3, width=0.003)
-#         plt.gca().add_patch(plt.Circle((x_goal, y_goal), step_size/2, color='red', alpha=0.15))
+        x_start,y_start, theta_start = start 
+        x_goal,y_goal,theta_goal = goal
+        plt.figure(figsize=(10, 10))
+        plt.plot(x_start,y_start, 'bo', markersize=7, label="Start")
+        plt.quiver(x_start, y_start, 0.03*np.cos(theta_start), 0.03*np.sin(theta_start), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+        plt.plot(x_goal,y_goal, 'ro', markersize=7, label="Goal")
+        plt.quiver(x_goal, y_goal, 0.03*np.cos(theta_goal), 0.03*np.sin(theta_goal), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+        plt.gca().add_patch(plt.Circle((x_goal, y_goal), step_size/2, color='red', alpha=0.15))
 
-# # main heading arrow
-#         plt.quiver(x_goal, y_goal, 0.03*np.cos(theta_goal), 0.03*np.sin(theta_goal),
-#                 angles='xy', scale_units='xy', scale=0.3, color='r', width=0.003)
+# main heading arrow
+        plt.quiver(x_goal, y_goal, 0.03*np.cos(theta_goal), 0.03*np.sin(theta_goal),
+                angles='xy', scale_units='xy', scale=0.3, color='r', width=0.003)
 
-#         # two limit arrows (± tolerance)
-#         for sign in (-1, 1):
-#             plt.quiver(x_goal, y_goal, 0.03*np.cos(theta_goal + sign*np.deg2rad(20)),
-#                     0.03*np.sin(theta_goal + sign*np.deg2rad(20)),
-#                     angles='xy', scale_units='xy', scale=0.3, color='r', alpha=0.6, width=0.003)
-#         plt.xlim(X[0])
-#         plt.ylim(X[1])
-#         plt.title("RRT in progress")
-#         plt.xlabel("X")
-#         plt.ylabel("Y")
-#         plt.legend()
+        # two limit arrows (± tolerance)
+        for sign in (-1, 1):
+            plt.quiver(x_goal, y_goal, 0.03*np.cos(theta_goal + sign*np.deg2rad(20)),
+                    0.03*np.sin(theta_goal + sign*np.deg2rad(20)),
+                    angles='xy', scale_units='xy', scale=0.3, color='r', alpha=0.6, width=0.003)
+        plt.xlim(X[0])
+        plt.ylim(X[1])
+        plt.title("RRT in progress")
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        plt.legend()
         
         ax = plt.gca()
         for (ox, oy), (w, h) in obstacles:
@@ -167,7 +167,7 @@ def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_parameters,trial,plo
         solution_length = {start: 0}
         iterations = 0
         t_inicial = time.time()
-        #plt.pause(0.1)
+        plt.pause(0.1)
         #input("Press Enter to start RRT...")
         goal_region = False
         while goal_region == False:
@@ -178,8 +178,8 @@ def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_parameters,trial,plo
                 t_elapsed = time.time() - t_inicial
                 print("Elapsed time (s):", t_elapsed)
             
-            # if (iterations % 1000 == 0) and iterations != 0:
-                #plt.title(f"RRT in progress - Iteration {iterations}")
+            if (iterations % 1000 == 0) and iterations != 0:
+                plt.title(f"RRT in progress - Iteration {iterations}")
                 #
                 #input("Press Enter to continue...")
             
@@ -198,10 +198,10 @@ def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_parameters,trial,plo
                 cost = solution_length[nearest_node]+ cost
                 solution_length[new_node] = cost
                 
-                # plt.plot([nearest_node[0], new_node[0]], [nearest_node[1], new_node[1]], color='black')  
-                # plt.plot(new_node[0], new_node[1], 'go', markersize=2)  
-                # plt.quiver(new_node[0], new_node[1], 0.03*np.cos(new_node[2]),
-                #             0.03*np.sin(new_node[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+                plt.plot([nearest_node[0], new_node[0]], [nearest_node[1], new_node[1]], color='black')  
+                plt.plot(new_node[0], new_node[1], 'go', markersize=2)  
+                plt.quiver(new_node[0], new_node[1], 0.03*np.cos(new_node[2]),
+                            0.03*np.sin(new_node[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
             if iterations >15000:
                 print("path not found ")
                 #plt.close()
