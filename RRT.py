@@ -52,7 +52,7 @@ def is_edge_valid(node1, node2, obstacles):
 
 def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = False):
     # with plot on
-    np.random.seed(trial)
+    #np.random.seed(trial)
     if plot:
         plt.plot(*start, 'bo', markersize=8, label="Start")
         plt.plot(*goal, 'ro', markersize=8, label="Goal")
@@ -76,7 +76,7 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = Fal
         edges = []
         solution_length = {start: 0}
         iterations = 0
-        while goal not in nodes:
+        while goal not in nodes and (iterations<200):
             random_node, iterations = sample(X,epsilon,goal,obstacles,iterations)
             nearest_node = find_nearest_node(nodes,random_node)
             new_node,cost = step(nearest_node, random_node, step_size)
@@ -88,7 +88,9 @@ def  build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = Fal
                 
                 plt.plot([nearest_node[0], new_node[0]], [nearest_node[1], new_node[1]], color='black')  
                 plt.plot(new_node[0], new_node[1], 'go', markersize=2)  
-                
+        if goal not in nodes:
+            plt.cla()
+            return iterations, len(nodes), np.inf
         node = goal
         path = []
         while node != start:
@@ -150,7 +152,7 @@ def main():
     goal = (75, 50)
     epsilon = 0.01
     step_size = 2.5
-    trials_number = 100
+    trials_number = 1000
 
     gap_width = 4
     obstacles = [((50,50),(10,100-2*gap_width))]
@@ -161,17 +163,14 @@ def main():
     
     
     
-    iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial = 0,plot = True)
     
-    iterations_list[0] = iterations
-    vertices_list[0] = vertices
-    solution_length_list[0] = solution_length
+    
 
     
 
-    for trial in range(1,trials_number):
-
-        iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial)
+    for trial in range(0,trials_number):
+        print("Trial number",trial)
+        iterations, vertices, solution_length = build_RRT(start,goal,xlim,ylim,obstacles,epsilon,step_size,trial,plot = True)
     
         iterations_list[trial] = iterations
         vertices_list[trial] = vertices

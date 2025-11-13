@@ -26,10 +26,14 @@ def wrap_to_pi(a):
 
 def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,p,last_max_w,w_line):
     iterations += 1
-    
+    time_to_sample = time.time()
+    t_1_end = 0
+    t_2_end = 0
+    t_3_end = 0
+    t_4_end = 0
     if flag_obstacle:
-        time_to_sample = time.time()
         
+        t_1 = time.time()
         changed_w = []
         xy = np.array([[n[0], n[1]] for n in nodes])
         kdt = cKDTree(xy)
@@ -39,7 +43,8 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,
 
         # For each neighbor, check the heading difference
         last_max_w_changed = False
-        
+        t_1_end = time.time() - t_1
+        t_2 = time.time()
         for i in idxs:
             node1 = nodes[i]
             if abs(wrap_to_pi(node1[2] - new_node[2])) < np.deg2rad(45):
@@ -48,7 +53,8 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,
                     last_max_w_changed = True
                     last_max_w = w[node1]
                 changed_w.append(i)
-
+        t_2_end = time.time() - t_2
+        t_3 = time.time()
         if last_max_w_changed:
             
             p = {}
@@ -60,7 +66,9 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,
                 sum_w_line += w_line[node]
             for node in nodes:
                 p[node] = w_line[node] / sum_w_line
+            t_3_end = time.time() - t_3
         else:
+            t_4 = time.time()
             for i in changed_w:
                 node1 = nodes[i]
                 w_line[node1] = last_max_w + 1 - w[node1]
@@ -68,14 +76,22 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,
             for i in changed_w:
                 node1 = nodes[i]
                 p[node1] = w_line[node1] / sum_w_line
+            t_4_end = time.time() - t_4
         if iterations > 1000 :
             time_to_sample_end = time.time() - time_to_sample
             
             #print("Time to sample weights (s):", time_to_sample_end)
             #input("Press Enter to continue...")
         
-    
+    t_5 = time.time()
     selected_node = random.choices(nodes, weights=[p[node] for node in nodes], k=1)[0]
+    t_5_end = time.time() - t_5
+    time_to_sample_end = time.time() - time_to_sample
+    if iterations > 4000:
+        print("iterations:", iterations)
+        print("Time1", t_1_end*1000, "Time2", t_2_end*1000, "Time3", t_3_end*1000, "Time4", t_4_end*1000, "Time5", t_5_end*1000)
+        print("Time to sample total (s):", time_to_sample_end*1000)
+        input("Press Enter to continue...")
     return selected_node,iterations,w, p,last_max_w,w_line,
 
 
@@ -167,40 +183,40 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
         t_inicial = time.time()
         while check_goal_zone(nodes,goal):
             
-            # if iterations % 2000 == 0 and iterations > 0:
-            #     print("Iterations:",iterations)
-            #     t_elapsed = time.time() - t_inicial
-            #     print("Elapsed time (s):", t_elapsed) 
-            #     input("Press Enter to continue...")
+            #if iterations % 2000 == 0 and iterations > 0:
+             #   print("Iterations:",iterations)
+              #  t_elapsed = time.time() - t_inicial
+               # print("Elapsed time (s):", t_elapsed) 
+                #input("Press Enter to continue...")
+            t_loop = time.time()
+            t_1 = time.time()
             v_src,iterations,w,p,last_max_w,w_line = sample_random_node(nodes,x_new,radius_density,iterations,w,free_of_obstacles,p,last_max_w,w_line)
-            if iterations >1000:
-                t_initial_loop = time.time()
-            if iterations % 15000 == 0:
-                plt.pause(15)
-                input("Press Enter to continue...")
+            t_1_end = time.time() - t_1
+            t_2 = time.time()
             control_input = np.random.choice(discrete_steerings)
+            t_2_end = time.time() - t_2
+            t_3 = time.time()  
             x_new,free_of_obstacles = forward_propagate(v_src, control_input, step_time,L,obstacles,car_size)
+            t_3_end = time.time() - t_3
+            t_4 = time.time()
             if free_of_obstacles:
                 nodes.append(x_new)
                 w [x_new]= 0 
                 edges.append((v_src, x_new))
                 solution_length[x_new] = solution_length[v_src] + step_time * 0.2
                 
-                if plot:
-                    plt.plot([v_src[0], x_new[0]], [v_src[1], x_new[1]], color='black')  
-                    plt.plot(x_new[0], x_new[1], 'go', markersize=2)  
-                    plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
-                                0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+                #if plot:
+                    #plt.plot([v_src[0], x_new[0]], [v_src[1], x_new[1]], color='black')  
+                    #plt.plot(x_new[0], x_new[1], 'go', markersize=2)  
+                    #plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
+                     #           0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
                     #plt.pause(0.1)
-            if iterations >2000:
-                t_end_loop = time.time()
-                time_loop = t_end_loop - t_initial_loop
-                if time_loop > 0.002:
-                    time_run = time.time() - t_inicial
-                    print("time run", time_run)
-                    print("iterations:",iterations)
-                    input(time_loop)
-        
+            t_4_end = time.time() - t_4
+            t_loop_end = time.time() - t_loop
+            #if iterations >4000:
+             #   print(f"Time sampling: {1000*t_1_end}, Time control input: {1000*t_2_end}, Time forward propagate: {1000*t_3_end}, Time adding node: {1000*t_4_end}")
+              #  print("Total loop time:", 1000*t_loop_end)
+               # input("Press Enter to continue...")
         node = x_new
         path = []
         while node != start:
