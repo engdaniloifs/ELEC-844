@@ -5,17 +5,6 @@ import random
 import time
 from scipy.spatial import cKDTree
 
-def check_goal_zone(nodes,goal,threshold=0.05):
-    for node in nodes:
-        dist = distance(node, goal)
-        if dist <= threshold:
-            #print("Node",node,"is within goal threshold:",dist)
-            if abs(wrap_to_pi(node[2] - goal[2]))< np.deg2rad(20):
-                input("should stop now")
-                return False
-    return True
-
-
 
 
 def distance(node1, node2):
@@ -24,7 +13,7 @@ def distance(node1, node2):
 def wrap_to_pi(a):
     return (a + np.pi) % (2*np.pi) - np.pi
 
-def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,p,last_max_w,w_line,nodes_test,sum_w_line):
+def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,last_max_w,w_line,nodes_test,sum_w_line):
     iterations += 1
     time_to_sample = time.time()
     t_1_end = 0
@@ -61,8 +50,7 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,
         t_3 = time.time()
         if last_max_w_changed:
             sum_w_line = 0
-            
-            p = []
+        
             
             w_line = []
             
@@ -70,8 +58,7 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,
                 w_line_value = last_max_w + 1 - w[i]       # assuming w is a list/array
                 w_line.append(w_line_value)
                 sum_w_line += w_line_value
-            # for i in range(len(nodes)):
-                # p.append(w_line[i] / sum_w_line)
+    
             t_3_end = time.time() - t_3
         else:
             t_4 = time.time()
@@ -80,29 +67,24 @@ def sample_random_node(nodes,new_node,radius_density,iterations,w,flag_obstacle,
                 new_wl = last_max_w + 1 - w[i]
                 w_line[i] = new_wl
                 sum_w_line += (new_wl - old_wl)  
-            # for i in changed_w:
-                # p[i] = w_line[i] / sum_w_line
+            
             t_4_end = time.time() - t_4
         if iterations > 1000 :
             time_to_sample_end = time.time() - time_to_sample
             
-            #print("Time to sample weights (s):", time_to_sample_end)
-            #input("Press Enter to continue...")
         
     t_5 = time.time()
     selected_node = random.choices(nodes, weights=w_line, k=1)[0]
     t_5_end = time.time() - t_5
     time_to_sample_end = time.time() - time_to_sample
-    # if iterations > 4000:
-    #     print("iterations:", iterations)
-    #     print("Time1", t_1_end*1000,"t_1check",t_1_check_end*1000 ,"Time2", t_2_end*1000, "Time3", t_3_end*1000, "Time4", t_4_end*1000, "Time5", t_5_end*1000)
-    #     print("Time to sample total (s):", time_to_sample_end*1000)
-    #     input("Press Enter to continue...")
-    return selected_node,iterations,w, p,last_max_w,w_line,sum_w_line
+    # if iterations >5000:
+    #      print(f"Time checking neighbors: {1000*t_1_end}, Time updating weights: {1000*t_2_end}, Time updating w_line full: {1000*t_3_end}, Time updating w_line partial: {1000*t_4_end}, Time selecting node: {1000*t_5_end}, Time to sample total: {1000*time_to_sample_end}, Time to check neighbors: {1000*t_1_check_end}")
+    #      input("Press Enter to continue...")
+    return selected_node,iterations,w,last_max_w,w_line,sum_w_line
 
 
 
-def forward_propagate(state, control_input, step_time,car_track_length,obstacles,car_size):
+def forward_propagate(state, control_input, step_time,car_track_length,obstacles,car_size,goal):
     x, y, theta = state
     v = 0.1 
     delta = control_input
@@ -118,13 +100,16 @@ def forward_propagate(state, control_input, step_time,car_track_length,obstacles
         theta_new = wrap_to_pi(theta_new)
         x, y, theta = x_new, y_new, theta_new
         if is_in_obstacle((x_new,y_new,theta_new),obstacles,car_size):
-            return (x_new, y_new, theta_new), False
+            return (x_new, y_new, theta_new), False,False
         if not (-2 <= x_new <= 2 and -2 <= y_new <= 2):
-            return (x_new, y_new, theta_new), False
+            return (x_new, y_new, theta_new), False,False
+        if distance((x_new,y_new),goal) < 0.05 and abs(wrap_to_pi(theta_new - goal[2]))< np.deg2rad(20):
+            return (x_new, y_new, theta_new), True, True
+        
     time_elapsed = time.time() - time_elapsed
     
     #input("Time for forward propagate (s):"+str(time_elapsed))
-    return (x, y, theta), True
+    return (x, y, theta), True,False
 
 def is_in_obstacle(point,obstacles,car_size = None):
     px, py, ptheta = point
@@ -150,7 +135,7 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
     if plot:
         x_start,y_start, theta_start = start 
         x_goal,y_goal,theta_goal = goal
-        plt.figure(figsize=(10, 10))
+        plt.figure(figsize=(6, 6))
         plt.plot(x_start,y_start, 'bo', markersize=7, label="Start")
         plt.quiver(x_start, y_start, 0.03*np.cos(theta_start), 0.03*np.sin(theta_start), angles='xy', scale_units='xy', scale=0.3, width=0.003)
         plt.plot(x_goal,y_goal, 'ro', markersize=7, label="Goal")
@@ -190,32 +175,48 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
         t_inicial = time.time()
         sum_w_line = 0
         reset = True
-        while check_goal_zone(nodes,goal):
-            #if reset:
-             #   t_inicial = time.time()
-              #  reset = False
+        checkpoint = 1000
+        sample_handcap = 0
+        sample_count = 0
+        flag_goal = False
+        while not flag_goal:
+            # if reset:
+            #     t_inicial = time.time()
+            #     reset = False
             t_1 = time.time()
-            if iterations % 1000 == 0 and iterations > 0:
-                 t_elapsed = time.time() - t_inicial
-                 print("Iterations:",iterations)
-                 print("Elapsed time (s):", t_elapsed) 
-            #     reset = True
+            if iterations % 10000 == 0 and iterations > 0:
+                t_elapsed = time.time() - t_inicial
+                print("Iterations:",iterations)
+                print("Elapsed time (s):", t_elapsed) 
+                plt.pause(10)
+                 #reset = True
             #if iterations % 2000 == 0 and iterations > 0:
              #   print("Iterations:",iterations)
               #  t_elapsed = time.time() - t_inicial
                # print("Elapsed time (s):", t_elapsed) 
                 #input("Press Enter to continue...")
-    
-            v_src,iterations,w,p,last_max_w,w_line,sum_w_line = sample_random_node(nodes,x_new,
+
+            # if iterations >= checkpoint:
+            #     checkpoint += 1000
+            #     sample_handcap += 10
+            #     sample_count = 0
+            # if free_of_obstacles:
+            #     if sample_count < sample_handcap:
+            #         free_of_obstacles = False
+            #         sample_count = 0
+            #     else:
+            #         free_of_obstacles = True
+            v_src,iterations,w,last_max_w,w_line,sum_w_line = sample_random_node(nodes,x_new,
                                                                                    radius_density,iterations,w,
-                                                                                   free_of_obstacles,p,
+                                                                                   free_of_obstacles,
                                                                                    last_max_w,w_line,nodes_test,sum_w_line)
+            sample_count +=1
             t_1_end = time.time() - t_1
             t_2 = time.time()
             control_input = np.random.choice(discrete_steerings)
             t_2_end = time.time() - t_2
             t_3 = time.time()
-            x_new,free_of_obstacles = forward_propagate(v_src, control_input, step_time,L,obstacles,car_size)
+            x_new,free_of_obstacles,flag_goal = forward_propagate(v_src, control_input, step_time,L,obstacles,car_size,goal)
             t_3_end = time.time() - t_3
             t_4 = time.time()
             if free_of_obstacles:
@@ -226,18 +227,18 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
                 edges.append((v_src, x_new))
                 solution_length[x_new] = solution_length[v_src] + step_time * 0.2
                 
-                #if plot:
-                    #plt.plot([v_src[0], x_new[0]], [v_src[1], x_new[1]], color='black')  
-                    #plt.plot(x_new[0], x_new[1], 'go', markersize=2)  
-                    #plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
-                     #           0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+                if plot:
+                    plt.plot([v_src[0], x_new[0]], [v_src[1], x_new[1]], color='black')  
+                    plt.plot(x_new[0], x_new[1], 'go', markersize=2)  
+                    plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
+                                0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
                     #plt.pause(0.1)
             t_4_end = time.time() - t_4
             t_loop_end = time.time() - t_1
-            # if iterations >4000:
-            #     print(f"Time sampling: {1000*t_1_end}, Time control input: {1000*t_2_end}, Time forward propagate: {1000*t_3_end}, Time adding node: {1000*t_4_end}")
-            #     print("Total loop time:", 1000*t_loop_end)
-            #     input("Press Enter to continue...")
+            # if iterations >5000:
+            #      print(f"Time sampling: {1000*t_1_end}, Time control input: {1000*t_2_end}, Time forward propagate: {1000*t_3_end}, Time adding node: {1000*t_4_end}")
+            #      print("Total loop time:", 1000*t_loop_end)
+            #      input("Press Enter to continue...")
         node = x_new
         path = []
         while node != start:
@@ -276,7 +277,7 @@ def main():
     control_limits = [(0,1), (-0.5,0,0.5)] # speed, steering angle
     
     step_size = 0.5
-    radius_density = step_size/2
+    radius_density = step_size
     speed = 0.1
     step_time = step_size / speed
     trials_number = 100
