@@ -246,7 +246,7 @@ def  build_RRT(start,goal,X,obstacles,epsilon,step_size,car_parameters,trial,plo
     goal_region = False
     t_inicial = time.time()
     t_elapsed = 0
-    while not goal_region and t_elapsed < 60:
+    while not goal_region and t_elapsed < 30:
 
         random_node, iterations = sample(X,epsilon,goal,obstacles,iterations,car_parameters)
         nearest_node = find_nearest_node_kdtree(nodes,random_node,nodes_test,goal)
@@ -274,45 +274,46 @@ def main():
 
     xlim,ylim,thetalim= (-2, 2),(-2,2), (-np.pi, np.pi)
 
-    # start = (-1.5, 0, np.deg2rad(0)) #map1 a single wall
-    # goal = (1.5, 0, np.deg2rad(0))
+    start = (-1.5, 0, np.deg2rad(0)) #map1 a single wall
+    goal = (1.5, 0, np.deg2rad(0))
 
     # start = (-1.5,-1.5, np.deg2rad(0)) #map2 complex
     # goal = (-1.5,1.5, np.deg2rad(180))
 
-    start = (-1.5,0, np.deg2rad(0))
-    goal = (0,0,np.deg2rad(180)) #map3 bugtrap
+    # start = (-1.5,0, np.deg2rad(0))
+    # goal = (0,0,np.deg2rad(180)) #map3 bugtrap
 
 
     epsilon = 0.01
     step_size = 0.4
+
     init_trial_number = 400
     trials_number = 500
     
 
     X = [xlim,ylim,thetalim]
 
-    # obstacles = [ ((0,0),(0.22,1.5))]    #map1 a single wall
+    obstacles = [ ((0,0),(0.22,1.5))]    #map1 a single wall
     # obstacles = [((-1.2968538829963083, -0.5840415081573553), (0.44664215576084154, 0.4286360934557055)), 
     #              ((0.13027264796016458, -0.29706589303516573), (0.6399725922732928, 0.4012186776476059)), ((-0.8499273856216552, -0.5789428541291168), (0.5872450110966627, 0.5154658292272251)), 
     #              ((-1.0892193163584944, 0.8163982296877597), (0.5229946891033173, 0.5812293244789292)), ((-0.2115127561535839, 0.12508223792819195), (0.6694316322459648, 0.5231279491834893)), 
     #              ((0.5577927656119408, 1.723496494603246), (0.5501748570854095, 0.4969992177930826))] #map2 complex
-    obstacles = [                 #map3 bugtrap
-    # Top horizontal wall (0.9 wide, 0.1 thick)
-    ((0.00,  0.40), (0.90, 0.10)),
+#     obstacles = [                 #map3 bugtrap
+#     # Top horizontal wall (0.9 wide, 0.1 thick)
+#     ((0.00,  0.40), (0.90, 0.10)),
 
-    # Bottom horizontal wall (0.9 wide, 0.1 thick)
-    ((0.00, -0.40), (0.90, 0.10)),
+#     # Bottom horizontal wall (0.9 wide, 0.1 thick)
+#     ((0.00, -0.40), (0.90, 0.10)),
 
-    # Left vertical wall (0.1 thick, 0.9 tall)
-    ((-0.40, 0.00), (0.10, 0.90)),
+#     # Left vertical wall (0.1 thick, 0.9 tall)
+#     ((-0.40, 0.00), (0.10, 0.90)),
 
-    # Right-top small segment (0.1 wide, 0.1 tall)
-    ((0.40,  0.40), (0.10, 0.10)),
+#     # Right-top small segment (0.1 wide, 0.1 tall)
+#     ((0.40,  0.40), (0.10, 0.10)),
 
-    # Right-bottom small segment (0.1 wide, 0.1 tall)
-    ((0.40, -0.40), (0.10, 0.10)),
-]
+#     # Right-bottom small segment (0.1 wide, 0.1 tall)
+#     ((0.40, -0.40), (0.10, 0.10)),
+# ]
 
     iterations_list = np.zeros(trials_number,dtype=float)
     runtime_list = np.zeros(trials_number,dtype=float)
