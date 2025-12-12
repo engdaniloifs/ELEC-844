@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib import patches
 import random
 import time
+import pandas as pd
 from scipy.spatial import cKDTree
 
 
@@ -57,8 +58,7 @@ def forward_propagate(state, control_input, step_time,car_track_length,obstacles
     #time.sleep(1)
     steps_number = 40
     little_step = step_time / steps_number
-    
-    time_elapsed = time.time()
+   
     for _ in range(steps_number):
         x_new = x + v * np.cos(theta) * little_step
         y_new = y + v * np.sin(theta) * little_step
@@ -69,10 +69,9 @@ def forward_propagate(state, control_input, step_time,car_track_length,obstacles
             return (x_new, y_new, theta_new), False,False
         if not (-2 <= x_new <= 2 and -2 <= y_new <= 2):
             return (x_new, y_new, theta_new), False,False
-        if distance((x_new,y_new),goal) < 0.05 and abs(wrap_to_pi(theta_new - goal[2]))< np.deg2rad(30):
-            input("Goal reached during forward propagate!")
+        if distance((x_new,y_new),goal) < 0.05 and abs(wrap_to_pi(theta_new - goal[2]))< np.deg2rad(20):
             return (x_new, y_new, theta_new), True, True
-        
+    
         
     
     return (x, y, theta), True,False
@@ -97,11 +96,9 @@ def is_in_obstacle(point,obstacles,car_size = None):
     return False
 
 def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial = 0,plot = False):
-    nodes = [start]
-    np.random.seed(0)
-    random.seed(0)
+    np.random.seed(trial)
+    random.seed(trial)
     if plot:
-        print("cs")
         x_start,y_start, theta_start = start 
         x_goal,y_goal,theta_goal = goal
         plt.figure(figsize=(10, 10))
@@ -138,8 +135,6 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
         nodes_test = np.zeros((30000,2))
         nodes_test[0] = np.array([start[0],start[1]])
         edges = []
-        
-        solution_length = {start: 0}
 
         iterations = 0
         x_new = start
@@ -148,13 +143,12 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
         free_of_obstacles = True
         last_max_w = 0
         w_line = {}
+        plt.pause(0.1)
         t_inicial = time.time()
         flag_goal = False
-       
-        while not flag_goal: #and time.time() - t_inicial < 30:
-            
-                
-           
+        t_elapsed = 0
+        while not flag_goal and t_elapsed < 60: #:
+             
             v_src,iterations,w,last_max_w,w_line = sample_random_node(nodes,x_new, radius_density,iterations,w,
                                                                                    free_of_obstacles,
                                                                                    last_max_w,w_line,nodes_test)
@@ -166,13 +160,12 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
                 w.append(0) 
                 w_line.append(0)
                 edges.append((v_src, x_new))
-                solution_length[x_new] = solution_length[v_src] + step_time * 0.2
-                
                 if plot:
                     plt.plot([v_src[0], x_new[0]], [v_src[1], x_new[1]], color='black')  
                     plt.plot(x_new[0], x_new[1], 'go', markersize=2)  
                     plt.quiver(x_new[0], x_new[1], 0.03*np.cos(x_new[2]),
                                 0.03*np.sin(x_new[2]), angles='xy', scale_units='xy', scale=0.3, width=0.003)
+            t_elapsed = time.time() - t_inicial
         if flag_goal:
             node = x_new
             path = []
@@ -193,17 +186,59 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
                 plt.plot([x1, x2], [y1, y2], 'r-', linewidth=3)  
             path_demo.append(goal)
             plt.title(f"EST Finished - iterations {iterations}")
-            plt.pause(1)
-            
-            plt.show()
+            print("goal reached!")
             print("Iterations:",iterations)
-            print("Vertices:",len(nodes))
-            # print("Solution length:", solution_length[goal])
+            print("Time:",t_elapsed)
+
+            plt.pause(5)
+            plt.show()
         
-            return iterations, len(nodes), iterations
+            return iterations, t_elapsed, True
         else:
-            print("No solution found in time limit.")
-            return iterations, len(nodes), float('inf')
+            print("path not found within time limit")
+            plt.pause(5)
+            plt.show()
+            return iterations, t_elapsed, False
+    else:
+        nodes = [start]
+        nodes_test = np.zeros((30000,2))
+        nodes_test[0] = np.array([start[0],start[1]])
+        edges = []
+
+        iterations = 0
+        x_new = start
+        w = [0]
+        discrete_steerings = (-0.6,0.6)
+        free_of_obstacles = True
+        last_max_w = 0
+        w_line = {}
+        
+        t_inicial = time.time()
+        flag_goal = False
+        t_elapsed = 0
+        while not flag_goal and t_elapsed < 60: #:
+            
+            v_src,iterations,w,last_max_w,w_line = sample_random_node(nodes,x_new, radius_density,iterations,w,
+                                                                                   free_of_obstacles,
+                                                                                   last_max_w,w_line,nodes_test)
+            control_input = np.random.uniform(*discrete_steerings)
+            x_new,free_of_obstacles,flag_goal = forward_propagate(v_src, control_input, step_time,L,obstacles,car_size,goal)
+            if free_of_obstacles:
+                nodes.append(x_new)
+                nodes_test[len(nodes)-1] = [x_new[0],x_new[1]]
+                w.append(0) 
+                w_line.append(0)
+                edges.append((v_src, x_new))
+            t_elapsed = time.time() - t_inicial
+        if flag_goal:
+            print("goal reached!")
+            print("Iterations:",iterations)
+            print("Time:",t_elapsed)
+        
+            return iterations, t_elapsed, True
+        else:
+            print("path not found within time limit")
+            return iterations, t_elapsed, False
                     
 
 
@@ -211,23 +246,52 @@ def build_EST(start,goal,X,obstacles,radius_density, car_size, step_time,L,trial
 def main():
 
     xlim,ylim,thetalim = (-2, 2),(-2,2), (-np.pi, np.pi)
-    start = (-1.2, 0, np.deg2rad(0))
-    goal = (1.2, 0, np.deg2rad(0))
-    control_limits = [(0,1), (-0.5,0,0.5)] # speed, steering angle
+    # start = (-1.5, 0, np.deg2rad(0)) #map1 a single wall
+    # goal = (1.5, 0, np.deg2rad(0))
+
+    # start = (-1.5,-1.5, np.deg2rad(0)) #map2 complex
+    # goal = (-1.5,1.5, np.deg2rad(180))
+
+    start = (-1.5,0, np.deg2rad(0))
+    goal = (0,0,np.deg2rad(180)) #map3 bugtrap
+
+
     step_size = 0.4
     radius_density = step_size
     speed = 0.1
     step_time = step_size / speed
-    trials_number = 100
+    init_trial_number = 400
+    trials_number = 500
 
     X = [xlim,ylim,thetalim]
 
-    #gap_width = 10
-    obstacles = [((0,0),(0.22,1.5))]
+    # obstacles = [ ((0,0),(0.22,1.5))]    #map1 a single wall
+
+    # obstacles = [((-1.2968538829963083, -0.5840415081573553), (0.44664215576084154, 0.4286360934557055)), 
+    #              ((0.13027264796016458, -0.29706589303516573), (0.6399725922732928, 0.4012186776476059)), ((-0.8499273856216552, -0.5789428541291168), (0.5872450110966627, 0.5154658292272251)), 
+    #              ((-1.0892193163584944, 0.8163982296877597), (0.5229946891033173, 0.5812293244789292)), ((-0.2115127561535839, 0.12508223792819195), (0.6694316322459648, 0.5231279491834893)), 
+    #              ((0.5577927656119408, 1.723496494603246), (0.5501748570854095, 0.4969992177930826))] #map2 complex
+    
+    obstacles = [                 #map3 bugtrap
+    # Top horizontal wall (0.9 wide, 0.1 thick)
+    ((0.00,  0.40), (0.90, 0.10)),
+
+    # Bottom horizontal wall (0.9 wide, 0.1 thick)
+    ((0.00, -0.40), (0.90, 0.10)),
+
+    # Left vertical wall (0.1 thick, 0.9 tall)
+    ((-0.40, 0.00), (0.10, 0.90)),
+
+    # Right-top small segment (0.1 wide, 0.1 tall)
+    ((0.40,  0.40), (0.10, 0.10)),
+
+    # Right-bottom small segment (0.1 wide, 0.1 tall)
+    ((0.40, -0.40), (0.10, 0.10)),
+]
     
     iterations_list = np.zeros(trials_number,dtype=float)
-    vertices_list = np.zeros(trials_number,dtype=float)
-    solution_length_list = np.zeros(trials_number,dtype=float)
+    runtime_list = np.zeros(trials_number,dtype=float)
+    success_ratio_list = np.zeros(trials_number,dtype=float)
     
     width =  0.25
     length = 0.45
@@ -237,12 +301,39 @@ def main():
 
 
    
-    for trial in range(trials_number):
+    for trial in range(init_trial_number,trials_number):
         print("Trial number:",trial+1)
-        iterations, vertices, solution_length = build_EST(start,goal,X,obstacles,radius_density,
-                                                            car_size,step_time, L,trial,plot = True)
-        print("Trial",trial+1,"completed.")
-        plt.show()
+        iterations, runtime, success = build_EST(start,goal,X,obstacles,radius_density,
+                                                            car_size,step_time, L,trial,plot = False)
+        iterations_list[trial] = iterations
+        runtime_list[trial] = runtime
+        success_ratio_list[trial] = success
+
+    
+    df_trials = pd.DataFrame({
+    "Trial": np.arange(len(iterations_list)),
+    "Iterations": iterations_list,
+    "Runtime (s)": runtime_list,
+    "Success": success_ratio_list
+})
+
+# Compute final statistics
+    iterations_median = np.median(iterations_list)
+    runtime_median = np.median(runtime_list)
+    success_ratio = np.mean(success_ratio_list)
+
+    # Summary dataframe
+    df_summary = pd.DataFrame({
+        "Iterations Median": [iterations_median],
+        "Runtime Median": [runtime_median],
+        "Success Ratio": [success_ratio]
+    })
+
+    # Save both sheets in one Excel file:
+    text_file = "resultsEST"+str(init_trial_number)+"-"+str(trials_number-1)+".xlsx"
+    with pd.ExcelWriter(text_file) as writer:
+        df_trials.to_excel(writer, sheet_name="Trials", index=False)
+        df_summary.to_excel(writer, sheet_name="Summary", index=False)
         
 
 if __name__ == "__main__":

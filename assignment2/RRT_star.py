@@ -58,7 +58,7 @@ def find_best_parent(nodes,new_node,solution_length,obstacles,step_size):
     min_cost = float('inf')
     for neighbor in neighbors:
         if is_edge_valid(neighbor, new_node, obstacles):
-            if distance(neighbor, new_node) < step_size:
+            #if distance(neighbor, new_node) < step_size:
                 cost = solution_length[neighbor] + distance(neighbor, new_node)
                 if cost < min_cost:
                     min_cost = cost
@@ -228,7 +228,7 @@ def main():
     epsilon = 0.01
     step_size = 2.5
     trials_number = 100
-    max_iterations = 2500
+    max_iterations = 500
 
     gap_width = 25
     obstacles = [((50,50),(10,100-2*gap_width))] # first question scenario

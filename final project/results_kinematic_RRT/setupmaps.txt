@@ -1,0 +1,11 @@
+map1 	(single wall)
+start = (-1.5, 0, np.deg2rad(0))
+goal = (1.5, 0, np.deg2rad(0))
+
+map2 (complex map)
+start = (-1.5,-1.5, np.deg2rad(0))
+goal = (-1.5,1.5, np.deg2rad(180))
+
+map3  (bug trap) 
+start = (-1.5, 0, np.deg2rad(0))
+goal = (0,0,np.deg2rad(180))
